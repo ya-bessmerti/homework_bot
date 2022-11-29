@@ -1,13 +1,9 @@
 import logging
 import os
-import time
-import sys
-
 import requests
+import sys
 import telegram
-
-
-
+import time
 
 from dotenv import load_dotenv
 from http import HTTPStatus
@@ -22,27 +18,20 @@ RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
-
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    filename='main.log',
-    filemode='a',
-    format='%(asctime)s, %(levelname)s, %(message)s, %(name)s',
-)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler(stream=sys.stdout)
-logger.addHandler(handler)
+handler = logging.StreamHandler(sys.stdout)
 formatter = logging.Formatter(
     '%(asctime)s [%(levelname)s] - %(message)s'
 )
 handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 
 def check_tokens():
@@ -64,8 +53,8 @@ def send_message(bot, message):
     строку с текстом сообщения.
     """
     try:
-        bot.send_message(TELEGRAM_CHAT_ID, message)
-        logger.info(f'Бот отправил сообщение "{message}"')
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        logger.debug(f'Бот отправил сообщение "{message}"')
     except Exception as error:
         logger.error(f'Бот не отправил сообщение: {error}')
 
@@ -77,12 +66,21 @@ def get_api_answer(timestamp):
     В случае успешного запроса должна вернуть ответ API,
     приведя его из формата JSON к типам данных Python.
     """
-    time_index = timestamp or int(time.time())
-    payload = {'from_date': time_index}
-    response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
-    if response.status_code != HTTPStatus.OK:
-        raise ReferenceError('Статус ответа API не OK')
-    return response.json()
+    params = {'from_date': timestamp}
+    try:
+        response = requests.get(
+            ENDPOINT,
+            headers=HEADERS,
+            params=params,
+        )
+        if response.status_code != HTTPStatus.OK:
+            raise ReferenceError('Статус ответа API не OK')
+        logging.info('Ответ на запрос к API: 200 OK')
+        return response.json()
+    except requests.exceptions.RequestException:
+        message = f'Ошибка при запросе к API: {response.status_code}'
+        logging.error(message)
+        raise requests.exceptions.RequestException(message)
 
 
 def check_response(response):
@@ -133,24 +131,41 @@ def main():
     timestamp = int(time.time())
     while True:
         try:
+            logger.debug('Начало итерации, запрос к API')
             response = get_api_answer(timestamp)
             homework = check_response(response)
+            logging.info('Список домашних работ получен')
             if not homework:
-                message = 'На данный момент обновлений нет'
+                send_message(
+                    bot,
+                    'На данный момент обновлений нет',
+                )
+                logging.info('Новых заданий нет')
             else:
-                message = parse_status(homework[0])
-            timestamp = response('current_date')
+                send_message(
+                    bot,
+                    parse_status(homework[0]),
+                )
+                timestamp = response['current_date']
         except ReferenceError as error:
-            message = parse_status(check_response(response))
+            send_message(
+                bot,
+                parse_status(check_response(response)),
+            )
             logger.error(error)
         except KeyError as error:
-            message = f'Сбой в работе программы: {error}'
+            send_message(
+                bot,
+                f'Сбой в работе программы: {error}',
+            )
             logger.error(error)
         except TypeError as error:
-            message = f'Сбой в работе программы: {error}'
+            send_message(
+                bot,
+                f'Сбой в работе программы: {error}',
+            )
             logger.error(error)
         finally:
-            send_message(bot, message)
             time.sleep(RETRY_PERIOD)
 
 
