@@ -5,16 +5,18 @@ import sys
 
 import requests
 import telegram
+
+
+
+
 from dotenv import load_dotenv
 from http import HTTPStatus
 
-
 load_dotenv()
 
-
-PRACTICUM_TOKEN = os.getenv('TOKEN_PRACTICUM')
-TELEGRAM_TOKEN = os.getenv('TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('CHAT_ID')
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -34,7 +36,7 @@ logging.basicConfig(
     format='%(asctime)s, %(levelname)s, %(message)s, %(name)s',
 )
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(stream=sys.stdout)
 logger.addHandler(handler)
 formatter = logging.Formatter(
@@ -64,8 +66,8 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info(f'Бот отправил сообщение "{message}"')
-    except telegram.error.TelegramError as error:
-        logger.error(f'Бот не отправил сообщение "{message}": {error}')
+    except Exception as error:
+        logger.error(f'Бот не отправил сообщение: {error}')
 
 
 def get_api_answer(timestamp):
@@ -75,8 +77,9 @@ def get_api_answer(timestamp):
     В случае успешного запроса должна вернуть ответ API,
     приведя его из формата JSON к типам данных Python.
     """
-    params = {'from_date': timestamp}
-    response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    time_index = timestamp or int(time.time())
+    payload = {'from_date': time_index}
+    response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
     if response.status_code != HTTPStatus.OK:
         raise ReferenceError('Статус ответа API не OK')
     return response.json()
@@ -88,19 +91,13 @@ def check_response(response):
     В качестве параметра функция получает ответ API,
     приведенный к типам данных Python.
     """
-    if type(response) is not dict:
-        raise TypeError('Ответ API отличен от словаря')
-    try:
-        list_works = response['homeworks']
-    except KeyError:
-        logger.error('Ошибка словаря по ключу homeworks')
-        raise KeyError('Ошибка словаря по ключу homeworks')
-    try:
-        homework = list_works[0]
-    except IndexError:
-        logger.error('Список домашних работ пуст')
-        raise IndexError('Список домашних работ пуст')
-    return homework
+    if not isinstance(response, dict):
+        raise TypeError('В ответе API нет словаря')
+    if 'homeworks' not in response:
+        raise KeyError('Ключа "homeworks" в словаре нет')
+    if not isinstance(response['homeworks'], list):
+        raise TypeError('По ключу "homeworks" не получен список')
+    return response['homeworks']
 
 
 def parse_status(homework):
@@ -115,7 +112,9 @@ def parse_status(homework):
     if 'homework_name' not in homework:
         raise KeyError('Ключ homevork_name отсустсвует в homework')
     homework_name = homework.get('homework_name')
-    homework_status = homework.get('status')
+    if 'status' not in homework:
+        raise KeyError('Ключ status отсутствует в homework')
+    homework_status = homework['status']
     if homework_status not in HOMEWORK_VERDICTS:
         raise KeyError(f'Статус {homework_status} неизвестен')
     verdict = HOMEWORK_VERDICTS[homework_status]
@@ -140,15 +139,9 @@ def main():
                 message = 'На данный момент обновлений нет'
             else:
                 message = parse_status(homework[0])
-            timestamp = response.get('current_date')
-
-            message = parse_status(check_response(response))
-            if message != STATUS:
-                send_message(bot, message)
-                STATUS = message
-            time.sleep(RETRY_PERIOD)
+            timestamp = response('current_date')
         except ReferenceError as error:
-            message = f'Сбой в работе программы: {error}'
+            message = parse_status(check_response(response))
             logger.error(error)
         except KeyError as error:
             message = f'Сбой в работе программы: {error}'
