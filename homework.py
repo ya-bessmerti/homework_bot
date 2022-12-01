@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import time
 from http import HTTPStatus
 
@@ -119,7 +118,7 @@ def main():
             'Программа принудительно остановлена.'
         )
         raise SystemExit
-    
+
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
     while True:
