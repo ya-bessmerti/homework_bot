@@ -75,7 +75,7 @@ def get_api_answer(timestamp):
     except Exception as error:
         message = f'Сбой при переводе в формат json: {error}'
         logging.error(message)
-        raise InvalidJSONTransform(message)    
+        raise InvalidJSONTransform(message)
 
 
 def check_response(response):
