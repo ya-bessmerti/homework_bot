@@ -71,12 +71,11 @@ def get_api_answer(timestamp):
         raise ReferenceError('Статус ответа API не OK')
     logging.info('Ответ на запрос к API: 200 OK')
     try:
-        homework_json = response.json()
+        return response.json()
     except Exception as error:
         message = f'Сбой при переводе в формат json: {error}'
         logging.error(message)
-        raise InvalidJSONTransform(message)
-    return homework_json
+        raise InvalidJSONTransform(message)    
 
 
 def check_response(response):
