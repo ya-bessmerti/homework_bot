@@ -1,6 +1,6 @@
 class InvalidJSONTransform(Exception):
-    pass
+    """Возникает при ошибке преобразования ответа в json формат."""
 
 
 class SendMessedge(Exception):
-    pass
+    """Возникает при ошибке отправки сообщения."""

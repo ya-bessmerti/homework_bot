@@ -7,7 +7,7 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-import exception
+from exception import InvalidJSONTransform, SendMessedge
 
 load_dotenv()
 
@@ -45,7 +45,7 @@ def send_message(bot, message):
         logging.debug(f'Бот отправил сообщение "{message}"')
     except telegram.error.TelegramError as error:
         logging.error(f'Бот не отправил сообщение"{message}": {error}')
-        raise exception.SendMessedge(
+        raise SendMessedge(
             f'Бот не отправил сообщение"{message}": {error}'
         )
 
